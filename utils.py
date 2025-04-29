@@ -52,7 +52,6 @@ def non_max_suppression(predictions, conf_thresh=0.25, iou_thresh=0.5):
 
 
 def calculate_iou(box1, box2):
-    """Calculate Intersection over Union (IoU) between two bounding boxes"""
     if not isinstance(box1, torch.Tensor):
         box1 = torch.tensor(box1)
     if not isinstance(box2, torch.Tensor):
@@ -80,7 +79,6 @@ def calculate_iou(box1, box2):
 
 
 def mean_average_precision(pred_boxes, true_boxes, iou_threshold=0.5):
-    """Calculate mean Average Precision (mAP) for object detection"""
     epsilon = 1e-6
     average_precisions = []
 

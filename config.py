@@ -16,8 +16,8 @@ class Config:
     backbone_channels = [192, 256, 512, 1024]
 
     # Training
-    batch_size = 16
-    lr = 2e-5
+    batch_size = 32
+    lr = 1e-5
     epochs = 100
     lambda_coord = 5
     lambda_noobj = 0.5
