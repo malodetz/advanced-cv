@@ -1,4 +1,3 @@
-# model.py
 import torch
 import torch.nn as nn
 
@@ -7,87 +6,101 @@ from config import Config
 
 class YOLOv1(nn.Module):
     def __init__(self):
-        super().__init__()
-        self.depth = Config.num_boxes * 5 + Config.num_classes
+        super(YOLOv1, self).__init__()
 
-        layers = [
-            # Probe(0, forward=lambda x: print('#' * 5 + ' Start ' + '#' * 5)),
-            nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3),  # Conv 1
-            nn.LeakyReLU(negative_slope=0.1),
-            # Probe('conv1', forward=probe_dist),
+        self.grid_size = Config.grid_size
+        self.num_boxes = Config.num_boxes
+        self.num_classes = Config.num_classes
+        self.output_size = self.num_boxes * 5 + self.num_classes
+
+        self.features = nn.Sequential(
+            # Layer 1: 448x448x3 -> 224x224x64
+            nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3),
+            nn.BatchNorm2d(64),
+            nn.LeakyReLU(0.1),
             nn.MaxPool2d(kernel_size=2, stride=2),
-            # Conv 2
+            # Layer 2: 224x224x64 -> 112x112x192
             nn.Conv2d(64, 192, kernel_size=3, padding=1),
-            nn.LeakyReLU(negative_slope=0.1),
-            # Probe('conv2', forward=probe_dist),
+            nn.BatchNorm2d(192),
+            nn.LeakyReLU(0.1),
             nn.MaxPool2d(kernel_size=2, stride=2),
-            # Conv 3
+            # Layer 3: 112x112x192 -> 56x56x512
             nn.Conv2d(192, 128, kernel_size=1),
-            nn.LeakyReLU(negative_slope=0.1),
+            nn.BatchNorm2d(128),
+            nn.LeakyReLU(0.1),
             nn.Conv2d(128, 256, kernel_size=3, padding=1),
-            nn.LeakyReLU(negative_slope=0.1),
+            nn.BatchNorm2d(256),
+            nn.LeakyReLU(0.1),
             nn.Conv2d(256, 256, kernel_size=1),
-            nn.LeakyReLU(negative_slope=0.1),
+            nn.BatchNorm2d(256),
+            nn.LeakyReLU(0.1),
             nn.Conv2d(256, 512, kernel_size=3, padding=1),
-            nn.LeakyReLU(negative_slope=0.1),
-            # Probe('conv3', forward=probe_dist),
+            nn.BatchNorm2d(512),
+            nn.LeakyReLU(0.1),
             nn.MaxPool2d(kernel_size=2, stride=2),
-        ]
-
-        # Conv 4
-        for i in range(4):
-            layers += [
-                nn.Conv2d(512, 256, kernel_size=1),
-                nn.Conv2d(256, 512, kernel_size=3, padding=1),
-                nn.LeakyReLU(negative_slope=0.1),
-            ]
-        layers += [
+            # Layer 4: 56x56x512 -> 28x28x1024
+            nn.Conv2d(512, 256, kernel_size=1),
+            nn.BatchNorm2d(256),
+            nn.LeakyReLU(0.1),
+            nn.Conv2d(256, 512, kernel_size=3, padding=1),
+            nn.BatchNorm2d(512),
+            nn.LeakyReLU(0.1),
+            nn.Conv2d(512, 256, kernel_size=1),
+            nn.BatchNorm2d(256),
+            nn.LeakyReLU(0.1),
+            nn.Conv2d(256, 512, kernel_size=3, padding=1),
+            nn.BatchNorm2d(512),
+            nn.LeakyReLU(0.1),
             nn.Conv2d(512, 512, kernel_size=1),
+            nn.BatchNorm2d(512),
+            nn.LeakyReLU(0.1),
             nn.Conv2d(512, 1024, kernel_size=3, padding=1),
-            nn.LeakyReLU(negative_slope=0.1),
-            # Probe('conv4', forward=probe_dist),
+            nn.BatchNorm2d(1024),
+            nn.LeakyReLU(0.1),
             nn.MaxPool2d(kernel_size=2, stride=2),
-        ]
-
-        # Conv 5
-        for i in range(2):
-            layers += [
-                nn.Conv2d(1024, 512, kernel_size=1),
-                nn.Conv2d(512, 1024, kernel_size=3, padding=1),
-                nn.LeakyReLU(negative_slope=0.1),
-            ]
-        layers += [
+            # Layer 5: 28x28x1024 -> 14x14x1024
+            nn.Conv2d(1024, 512, kernel_size=1),
+            nn.BatchNorm2d(512),
+            nn.LeakyReLU(0.1),
+            nn.Conv2d(512, 1024, kernel_size=3, padding=1),
+            nn.BatchNorm2d(1024),
+            nn.LeakyReLU(0.1),
+            nn.Conv2d(1024, 512, kernel_size=1),
+            nn.BatchNorm2d(512),
+            nn.LeakyReLU(0.1),
+            nn.Conv2d(512, 1024, kernel_size=3, padding=1),
+            nn.BatchNorm2d(1024),
+            nn.LeakyReLU(0.1),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            # Layer 6: 14x14x1024 -> 7x7x1024
             nn.Conv2d(1024, 1024, kernel_size=3, padding=1),
-            nn.LeakyReLU(negative_slope=0.1),
-            nn.Conv2d(1024, 1024, kernel_size=3, stride=2, padding=1),
-            nn.LeakyReLU(negative_slope=0.1),
-            # Probe('conv5', forward=probe_dist),
-        ]
-
-        # Conv 6
-        for _ in range(2):
-            layers += [
-                nn.Conv2d(1024, 1024, kernel_size=3, padding=1),
-                nn.LeakyReLU(negative_slope=0.1),
-            ]
-        # layers.append(Probe('conv6', forward=probe_dist))
-
-        layers += [
+            nn.BatchNorm2d(1024),
+            nn.LeakyReLU(0.1),
+            nn.Conv2d(1024, 1024, kernel_size=3, padding=1),
+            nn.BatchNorm2d(1024),
+            nn.LeakyReLU(0.1),
+        )
+        self.fc = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(Config.grid_size * Config.grid_size * 1024, 4096),  # Linear 1
-            nn.Dropout(),
-            nn.LeakyReLU(negative_slope=0.1),
-            # Probe('linear1', forward=probe_dist),
-            nn.Linear(
-                4096, Config.grid_size * Config.grid_size * self.depth
-            ),  # Linear 2
-            # Probe('linear2', forward=probe_dist),
-        ]
-
-        self.model = nn.Sequential(*layers)
+            nn.Linear(7 * 7 * 1024, 4096),
+            nn.LeakyReLU(0.1),
+            nn.Dropout(0.5),
+            nn.Linear(4096, self.grid_size * self.grid_size * self.output_size),
+        )
 
     def forward(self, x):
-        return torch.reshape(
-            self.model.forward(x),
-            (x.size(dim=0), Config.grid_size, Config.grid_size, self.depth),
-        )
+        x = self.features(x)
+        x = self.fc(x)
+        x = x.view(-1, self.grid_size, self.grid_size, self.output_size)
+        for i in range(self.num_boxes):
+            box_start = i * 5
+            x[..., box_start : box_start + 2] = torch.sigmoid(
+                x[..., box_start : box_start + 2]
+            )
+            x[..., box_start + 4 : box_start + 5] = torch.sigmoid(
+                x[..., box_start + 4 : box_start + 5]
+            )
+        class_start = self.num_boxes * 5
+        x[..., class_start:] = torch.sigmoid(x[..., class_start:])
+
+        return x

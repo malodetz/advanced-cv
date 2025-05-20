@@ -1,9 +1,10 @@
-# dataset.py
 import os
+import random
 
 import cv2
 import numpy as np
 import torch
+import torchvision.transforms.functional as TF
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, Dataset
 
@@ -11,7 +12,7 @@ from config import Config
 
 
 class YOLODataset(Dataset):
-    def __init__(self, image_paths, labels, transform=None):
+    def __init__(self, image_paths, labels, transform=False):
         self.image_paths = image_paths
         self.labels = labels
         self.transform = transform
@@ -24,50 +25,50 @@ class YOLODataset(Dataset):
 
     def __getitem__(self, idx):
         image = cv2.imread(self.image_paths[idx])
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        h, w = image.shape[:2]
-
-        # Resize image
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV_FULL)
         image = cv2.resize(image, (Config.img_size, Config.img_size))
         image = image / 255.0
-
-        # Prepare target tensor
         target = torch.zeros(
             (self.grid_size, self.grid_size, self.num_boxes * 5 + self.num_classes)
         )
-
-        # Parse annotations
+        augment1 = False
+        augment2 = False
+        if self.transform:
+            augment1 = random.random() > 0.5
+            augment2 = random.random() > 0.5
+        if augment1:
+            image = np.fliplr(image)
+        if augment2:
+            image = np.flipud(image)
         with open(self.labels[idx], "r") as f:
             for line in f.readlines():
                 class_id, xc, yc, bw, bh = map(float, line.strip().split())
 
-                # Convert to grid coordinates
+                if augment1:
+                    xc = 1 - xc
+                if augment2:
+                    yc = 1 - yc
+
                 grid_x = int(xc * self.grid_size)
                 grid_y = int(yc * self.grid_size)
-
-                # Cell coordinates
                 x_cell = xc * self.grid_size - grid_x
                 y_cell = yc * self.grid_size - grid_y
                 bw_cell = bw * self.grid_size
                 bh_cell = bh * self.grid_size
 
-                # One-hot class encoding
                 class_vec = torch.zeros(self.num_classes)
                 class_vec[int(class_id)] = 1
-
-                # Fill target tensor
                 box_data = torch.tensor([x_cell, y_cell, bw_cell, bh_cell, 1.0])
                 target[grid_y, grid_x, : 5 * self.num_boxes] = torch.cat(
                     [box_data] * self.num_boxes
                 )
                 target[grid_y, grid_x, 5 * self.num_boxes :] = class_vec
 
-        image = torch.tensor(image).permute(2, 0, 1).float()
+        image = torch.tensor(image.copy()).permute(2, 0, 1).float()
         return image, target
 
 
 def create_dataloaders():
-    # Get all files
     images = sorted(
         [
             os.path.join(Config.data_dir, f)
@@ -77,17 +78,18 @@ def create_dataloaders():
     )
     labels = [f.replace(".jpg", ".txt") for f in images]
 
-    # Split dataset
     train_img, val_img, train_lbl, val_lbl = train_test_split(
         images, labels, train_size=Config.train_ratio, random_state=42
     )
 
-    # Create datasets
-    train_ds = YOLODataset(train_img, train_lbl)
+    train_ds = YOLODataset(train_img, train_lbl, transform=True)
     val_ds = YOLODataset(val_img, val_lbl)
 
-    # Create dataloaders
-    train_loader = DataLoader(train_ds, batch_size=Config.batch_size, shuffle=True)
-    val_loader = DataLoader(val_ds, batch_size=Config.batch_size, shuffle=False)
+    train_loader = DataLoader(
+        train_ds, batch_size=Config.batch_size, shuffle=True, num_workers=4
+    )
+    val_loader = DataLoader(
+        val_ds, batch_size=Config.batch_size, shuffle=False, num_workers=4
+    )
 
     return train_loader, val_loader
